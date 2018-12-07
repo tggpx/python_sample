@@ -3,6 +3,30 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import os
 
+class case_no_file(object):
+    '''case file is not exists'''
+    def test(self, handler):
+        return not os.path.exists(handler.full_path)
+    
+    def act(self, handler):
+        raise ServerException("'{0}' not found".format(handler.path))
+
+class case_existing_file(object):
+    '''case file is exists'''
+    def test(self, handler):
+        return os.path.isfile(handler.full_path)
+    
+    def act(self, handler):
+        handler.handle_file(handler.full_path)
+
+class case_always_fail(object):
+    def test(self, handler):
+        return True
+    
+    def act(self, handler):
+        raise ServerException("Unknown object '{0}'".format(handler.path))
+        
+
 class ServerException(Exception):
     '''Server inner error'''
     pass
@@ -39,22 +63,19 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(content.encode())
 
+    Cases = [case_no_file, case_existing_file, case_always_fail]
     #Handle a Get request.
     def do_GET(self):
         #self.send_page(self.create_page())
         try:
             # Figure out what exactly is being requested.
-            full_path = os.getcwd() + self.path
+            self.full_path = os.getcwd() + self.path
 
-            # If dosn't exist...
-            if not os.path.exists(full_path):
-                raise ServerException("'{0}' not found".format(self.path))
-
-            elif os.path.isfile(full_path):
-                self.handle_file(full_path)
-            
-            else:
-                raise ServerException("Unknow object '{0}'".format(self.path))
+            for case in self.Cases:
+                handler = case()
+                if handler.test(self):
+                    handler.act(self)
+                    break
         except Exception as msg:
             self.handle_error(msg)
 
