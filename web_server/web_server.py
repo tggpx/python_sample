@@ -25,7 +25,30 @@ class case_always_fail(object):
     
     def act(self, handler):
         raise ServerException("Unknown object '{0}'".format(handler.path))
-        
+
+class case_directory_index_file(object):
+    '''Serve index.html page for a directory.'''
+
+    def index_path(self, handler):
+        return os.path.join(handler.full_path, 'index.html')
+
+    def test(self, hander):
+        return os.path.isdir(hander.full_path) and \
+                os.path.isfile(self.index_path(hander))
+
+    def act(self, handler):
+        handler.handle_file(self.index_path(handler)) 
+
+class case_directory_no_index_file(object):
+    def index_path(self, handler):
+        return os.path.join(handler.full_path, 'index.html')
+    
+    def test(self, handler):
+        return os.path.isdir(handler.full_path) and \
+               not os.path.isfile(self.index_path(handler))
+
+    def act(self, handler):
+        handler.list_dir(handler.full_path)
 
 class ServerException(Exception):
     '''Server inner error'''
@@ -43,6 +66,25 @@ class RequestHandler(BaseHTTPRequestHandler):
     </html>
     '''
     
+    List_Page = ''' \
+    <html>
+        <body>
+            <ul>
+            {0}
+            </ul>
+        </body>
+    </html>
+    '''
+
+    def list_dir(self, full_path):
+        try:
+            entries = os.listdir(full_path)
+            bullets = ['<li>{0}</li>'.format(e) for e in entries if not e.startswith('.')]
+            page = self.List_Page.format('\n'.join(bullets))
+            self.send_content(page)
+        except OSError as msg:
+            self.handle_error(msg)
+
     def handle_error(self, msg):
         content = self.Error_Page.format(path = self.path, msg=msg)
         self.send_content(content, 404)
@@ -63,7 +105,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(content.encode())
 
-    Cases = [case_no_file, case_existing_file, case_always_fail]
+    Cases = [case_no_file, case_existing_file, case_directory_index_file, case_directory_no_index_file, case_always_fail]
     #Handle a Get request.
     def do_GET(self):
         #self.send_page(self.create_page())
