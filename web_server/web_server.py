@@ -2,6 +2,14 @@
 
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import os
+import subprocess
+class case_cgi_file(object):
+    def test(self, handler):
+        return os.path.isfile(handler.full_path) and \
+                handler.full_path.endswith('.py')
+    
+    def act(self, handler):
+        handler.run_cgi(handler.full_path)
 
 class case_no_file(object):
     '''case file is not exists'''
@@ -76,6 +84,14 @@ class RequestHandler(BaseHTTPRequestHandler):
     </html>
     '''
 
+    def run_cgi(self, full_path):
+        cmd = 'python ' + full_path
+        out = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out.stdin.close()
+        data = str(out.stdout.read(), 'utf-8')
+        out.stdout.close()
+        self.send_content(data)
+
     def list_dir(self, full_path):
         try:
             entries = os.listdir(full_path)
@@ -105,7 +121,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(content.encode())
 
-    Cases = [case_no_file, case_existing_file, case_directory_index_file, case_directory_no_index_file, case_always_fail]
+    Cases = [case_no_file, case_cgi_file, case_existing_file, case_directory_index_file, case_directory_no_index_file, case_always_fail]
     #Handle a Get request.
     def do_GET(self):
         #self.send_page(self.create_page())
